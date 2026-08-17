@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Mini</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #0a0a0a; color: white; font-family: system-ui; padding: 12px; }
+    .top { display: flex; gap: 10px; margin-bottom: 15px; }
+    .top input { flex: 1; padding: 14px; border-radius: 25px; border: none; background: #1a1a1a; color: white; font-size: 16px; }
+    .top button { padding: 14px 20px; background: #ff0000; color: white; border: none; border-radius: 25px; font-weight: bold; font-size: 16px; }
+    .video { background: #1a1a1a; border-radius: 12px; margin-bottom: 12px; overflow: hidden; cursor: pointer; }
+    .video img { width: 100%; display: block; }
+    .video-info { padding: 12px; }
+    .video-title { font-weight: bold; }
+    .video-channel { color: #888; font-size: 14px; }
+    iframe { width: 100%; height: 300px; border: none; border-radius: 12px; }
+    .back { margin-top: 10px; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; width: 100%; font-size: 16px; }
+    .loading { text-align: center; padding: 40px; color: #666; }
+    .auth-btn { padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
+    .user-name { color: #888; margin-left: 10px; }
+  </style>
+</head>
+<body>
+
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+  <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
+  <span id="userName" class="user-name"></span>
+</div>
+
+<div class="top">
+  <input id="q" placeholder="Поиск видео..." />
+  <button onclick="search()">Найти</button>
+</div>
+
+<div id="results"></div>
+<div id="player"></div>
+
+<script>
+  const API_URL = window.location.origin;
+
+  async function checkUser() {
+    const res = await fetch(`${API_URL}/user`);
+    const data = await res.json();
+    if (data && data.name) {
+      document.getElementById('authBtn').textContent = 'Выйти';
+      document.getElementById('userName').textContent = data.name;
+    } else {
+      document.getElementById('authBtn').textContent = 'Войти через Google';
+      document.getElementById('userName').textContent = '';
+    }
+  }
+
+  function login() {
+    window.location.href = `${API_URL}/auth/google`;
+  }
+
+  async function search() {
+    const q = document.getElementById('q').value;
+    if (!q) return;
+
+    document.getElementById('results').innerHTML = '<div class="loading">Загрузка...</div>';
+    document.getElementById('player').innerHTML = '';
+
+    try {
+      const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+
+      const container = document.getElementById('results');
+      container.innerHTML = '';
+
+      data.items.forEach(item => {
+        if (!item.id || !item.id.videoId) return;
+        const div = document.createElement('div');
+        div.className = 'video';
+        div.innerHTML = `
+          <div onclick="play('${item.id.videoId}')">
+            <img src="${item.snippet.thumbnails.high.url}" />
+            <div class="video-info">
+              <div class="video-title">${item.snippet.title}</div>
+              <div class="video-channel">${item.snippet.channelTitle}</div>
+            </div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    } catch (e) {
+      document.getElementById('results').innerHTML = `<div class="loading">Ошибка: ${e.message}</div>`;
+    }
+  }
+
+  function play(id) {
+    document.getElementById('results').innerHTML = '';
+    document.getElementById('player').innerHTML = `
+      <iframe src="https://www.youtube.com/embed/${id}?autoplay=1" allow="autoplay; encrypted-media; fullscreen"></iframe>
+      <button class="back" onclick="back()">Назад к списку</button>
+    `;
+  }
+
+  function back() {
+    document.getElementById('player').innerHTML = '';
+    search();
+  }
+
+  checkUser();
+</script>
+</body>
+</html>
