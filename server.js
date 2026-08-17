@@ -29,7 +29,7 @@ async function initDB() {
     userId TEXT, channelId TEXT, PRIMARY KEY (userId, channelId)
   )`);
   saveDB();
-  console.log('✅ База данных инициализирована!');
+  console.log('База данных инициализирована!');
 }
 
 function saveDB() {
@@ -50,14 +50,15 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-const GOOGLE_CLIENT_ID = '868714438086-re0oegl4b4mjecs32lu5o7306impsgff.apps.googleusercontent.com';
-const GOOGLE_CLIENT_SECRET = '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';
-const YOUTUBE_API_KEY = 'AIzaSyCAyIWpuw5slN5k9XsynnH-VkToF1g_F-8';
+// КЛЮЧИ БЕРУТСЯ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: 'http://localhost:3000/auth/google/callback'
+  callbackURL: process.env.CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
 }, (accessToken, refreshToken, profile, done) => {
   const stmt = db.prepare(`INSERT OR REPLACE INTO users (id, name, email, accessToken) VALUES (?, ?, ?, ?)`);
   stmt.run([profile.id, profile.displayName, profile.emails[0].value, accessToken]);
@@ -69,11 +70,11 @@ passport.use(new GoogleStrategy({
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
-app.get('/auth/google', passport.authenticate('google', { 
-  scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.force-ssl'] 
+app.get('/auth/google', passport.authenticate('google', {
+  scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.force-ssl']
 }));
-app.get('/auth/google/callback', 
-  passport.authenticate('google', { failureRedirect: '/' }), 
+app.get('/auth/google/callback',
+  passport.authenticate('google', { failureRedirect: '/' }),
   (req, res) => res.redirect('/')
 );
 
@@ -147,8 +148,9 @@ app.get('/subscriptions/:channelId', (req, res) => {
   res.json({ subscribed: result.length > 0 });
 });
 
+const PORT = process.env.PORT || 3000;
 initDB().then(() => {
-  app.listen(3000, '0.0.0.0', () => {
-    console.log('🚀 Сервер запущен!');
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log('Сервер запущен!');
   });
 });
