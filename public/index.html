@@ -19,18 +19,21 @@
     .back { margin-top: 10px; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; width: 100%; font-size: 16px; }
     .loading { text-align: center; padding: 40px; color: #666; }
     .auth-btn { padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
+    .shorts-btn { padding: 12px 24px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; margin-bottom: 15px; margin-left: 10px; }
     .user-name { color: #888; margin-left: 10px; }
+    .header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
   </style>
 </head>
 <body>
 
-<div style="display:flex; align-items:center; gap:10px; margin-bottom:15px; flex-wrap:wrap;">
+<div class="header">
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
+  <button class="shorts-btn" onclick="window.location.href='/shorts.html'">📱 Shorts</button>
   <span id="userName" class="user-name"></span>
 </div>
 
 <div class="top">
-  <input id="q" placeholder="Поиск видео..." />
+  <input id="q" placeholder="🔍 Поиск видео..." />
   <button onclick="search()">Найти</button>
 </div>
 
@@ -60,7 +63,7 @@
     const q = document.getElementById('q').value;
     if (!q) return;
 
-    document.getElementById('results').innerHTML = '<div class="loading">Загрузка...</div>';
+    document.getElementById('results').innerHTML = '<div class="loading">⏳ Загрузка...</div>';
     document.getElementById('player').innerHTML = '';
 
     try {
@@ -79,22 +82,22 @@
             <img src="${item.snippet.thumbnails.high.url}" />
             <div class="video-info">
               <div class="video-title">${item.snippet.title}</div>
-              <div class="video-channel">${item.snippet.channelTitle}</div>
+              <div class="video-channel">📺 ${item.snippet.channelTitle}</div>
             </div>
           </div>
         `;
         container.appendChild(div);
       });
     } catch (e) {
-      document.getElementById('results').innerHTML = `<div class="loading">Ошибка: ${e.message}</div>`;
+      document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
     }
   }
 
   function play(id) {
     document.getElementById('results').innerHTML = '';
     document.getElementById('player').innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${id}?autoplay=1" allow="autoplay; encrypted-media; fullscreen"></iframe>
-      <button class="back" onclick="back()">Назад к списку</button>
+      <iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen"></iframe>
+      <button class="back" onclick="back()">⬅️ Назад к списку</button>
     `;
   }
 
