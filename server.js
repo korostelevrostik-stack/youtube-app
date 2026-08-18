@@ -11,6 +11,7 @@ const app = express();
 let db;
 const DB_FILE = './data.db';
 
+// ===== БАЗА ДАННЫХ =====
 async function initDB() {
   const SQL = await initSqlJs();
   if (fs.existsSync(DB_FILE)) {
@@ -29,7 +30,7 @@ async function initDB() {
     userId TEXT, channelId TEXT, PRIMARY KEY (userId, channelId)
   )`);
   saveDB();
-  console.log('База данных инициализирована!');
+  console.log('✅ База данных инициализирована!');
 }
 
 function saveDB() {
@@ -38,6 +39,7 @@ function saveDB() {
   fs.writeFileSync(DB_FILE, buffer);
 }
 
+// ===== НАСТРОЙКИ =====
 app.use(cors());
 app.use(express.static('public'));
 app.use(express.json());
@@ -50,11 +52,12 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// КЛЮЧИ БЕРУТСЯ ИЗ ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+// ===== ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ =====
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
+// ===== АВТОРИЗАЦИЯ GOOGLE =====
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
@@ -82,11 +85,18 @@ app.get('/user', (req, res) => {
   res.json(req.user ? { id: req.user.id, name: req.user.displayName } : null);
 });
 
+// ===== ПОИСК ВИДЕО =====
 app.get('/search', async (req, res) => {
   try {
     const query = req.query.q;
     const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-      params: { part: 'snippet', q: query, type: 'video', maxResults: 20, key: YOUTUBE_API_KEY }
+      params: {
+        part: 'snippet',
+        q: query,
+        type: 'video',
+        maxResults: 20,
+        key: YOUTUBE_API_KEY
+      }
     });
     res.json(response.data);
   } catch (error) {
@@ -94,6 +104,26 @@ app.get('/search', async (req, res) => {
   }
 });
 
+// ===== SHORTS (КОРОТКИЕ ВИДЕО) =====
+app.get('/shorts', async (req, res) => {
+  try {
+    const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+      params: {
+        part: 'snippet',
+        q: 'shorts',
+        type: 'video',
+        maxResults: 30,
+        videoDuration: 'short',
+        key: YOUTUBE_API_KEY
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== ЛАЙКИ =====
 app.post('/like', (req, res) => {
   const { videoId } = req.body;
   const userId = req.user?.id;
@@ -121,6 +151,7 @@ app.get('/likes/:videoId', (req, res) => {
   res.json({ liked: result.length > 0 });
 });
 
+// ===== ПОДПИСКИ =====
 app.post('/subscribe', (req, res) => {
   const { channelId } = req.body;
   const userId = req.user?.id;
@@ -148,9 +179,10 @@ app.get('/subscriptions/:channelId', (req, res) => {
   res.json({ subscribed: result.length > 0 });
 });
 
+// ===== ЗАПУСК =====
 const PORT = process.env.PORT || 3000;
 initDB().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log('Сервер запущен!');
+    console.log(`🚀 Сервер запущен на порту ${PORT}`);
   });
 });
