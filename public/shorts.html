@@ -10,13 +10,14 @@
     .container { height: 100vh; overflow-y: scroll; scroll-snap-type: y mandatory; scroll-behavior: smooth; }
     .short { height: 100vh; scroll-snap-align: start; display: flex; flex-direction: column; justify-content: center; align-items: center; position: relative; background: #0a0a0a; }
     .short iframe { width: 100%; height: 100%; border: none; position: absolute; top: 0; left: 0; }
-    .short-info { position: absolute; bottom: 60px; left: 20px; z-index: 10; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
-    .short-title { font-size: 18px; font-weight: bold; max-width: 80%; }
-    .short-channel { font-size: 14px; color: #aaa; margin-top: 4px; }
-    .controls { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 30px; background: rgba(0,0,0,0.5); padding: 12px 30px; border-radius: 30px; backdrop-filter: blur(10px); }
-    .controls button { background: none; border: none; color: white; font-size: 28px; cursor: pointer; }
+    .short-info { position: absolute; bottom: 80px; left: 20px; z-index: 10; text-shadow: 0 2px 10px rgba(0,0,0,0.8); }
+    .short-title { font-size: 16px; font-weight: bold; max-width: 80%; }
+    .short-channel { font-size: 13px; color: #aaa; margin-top: 4px; }
+    .controls { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 20; display: flex; gap: 40px; background: rgba(0,0,0,0.6); padding: 12px 30px; border-radius: 30px; backdrop-filter: blur(10px); }
+    .controls button { background: none; border: none; color: white; font-size: 28px; cursor: pointer; padding: 0 10px; }
     .loading { display: flex; justify-content: center; align-items: center; height: 100vh; color: #666; font-size: 20px; }
-    .back-btn { position: fixed; top: 20px; left: 20px; z-index: 30; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 24px; cursor: pointer; backdrop-filter: blur(10px); }
+    .back-btn { position: fixed; top: 20px; left: 20px; z-index: 30; background: rgba(0,0,0,0.5); color: white; border: none; border-radius: 50%; width: 44px; height: 44px; font-size: 22px; cursor: pointer; backdrop-filter: blur(10px); }
+    .error { text-align: center; padding: 20px; color: #ff4444; }
   </style>
 </head>
 <body>
@@ -38,6 +39,10 @@
     try {
       const res = await fetch(`${API_URL}/shorts`);
       const data = await res.json();
+      if (!data.items || data.items.length === 0) {
+        container.innerHTML = '<div class="loading">😕 Коротких видео не найдено</div>';
+        return;
+      }
       shortsData = data.items.filter(item => item.id && item.id.videoId);
       container.innerHTML = '';
       shortsData.forEach((item, index) => {
@@ -45,7 +50,10 @@
         div.className = 'short';
         div.innerHTML = `
           <iframe src="https://www.youtube.com/embed/${item.id.videoId}?autoplay=${index===0?1:0}&controls=0&rel=0&modestbranding=1" allow="autoplay; encrypted-media; fullscreen"></iframe>
-          <div class="short-info"><div class="short-title">${item.snippet.title}</div><div class="short-channel">📺 ${item.snippet.channelTitle}</div></div>
+          <div class="short-info">
+            <div class="short-title">${item.snippet.title}</div>
+            <div class="short-channel">📺 ${item.snippet.channelTitle}</div>
+          </div>
         `;
         container.appendChild(div);
       });
@@ -59,6 +67,7 @@
     if (currentIndex < shortsData.length - 1) {
       currentIndex++;
       container.scrollTo({ top: currentIndex * window.innerHeight, behavior: 'smooth' });
+      updatePlayer(currentIndex);
     }
   }
 
@@ -66,12 +75,31 @@
     if (currentIndex > 0) {
       currentIndex--;
       document.getElementById('shorts-container').scrollTo({ top: currentIndex * window.innerHeight, behavior: 'smooth' });
+      updatePlayer(currentIndex);
     }
   }
 
+  function updatePlayer(index) {
+    document.querySelectorAll('.short iframe').forEach((iframe, i) => {
+      const src = iframe.src;
+      if (i === index) {
+        iframe.src = src.replace('autoplay=0', 'autoplay=1');
+      } else {
+        iframe.src = src.replace('autoplay=1', 'autoplay=0');
+      }
+    });
+  }
+
+  let scrollTimeout;
   document.getElementById('shorts-container').addEventListener('scroll', () => {
-    const index = Math.round(window.scrollY / window.innerHeight);
-    if (index !== currentIndex) currentIndex = index;
+    clearTimeout(scrollTimeout);
+    scrollTimeout = setTimeout(() => {
+      const index = Math.round(window.scrollY / window.innerHeight);
+      if (index !== currentIndex && index < shortsData.length) {
+        currentIndex = index;
+        updatePlayer(currentIndex);
+      }
+    }, 100);
   });
 
   loadShorts();
