@@ -21,13 +21,20 @@ async function initDB() {
     db = new SQL.Database();
   }
   db.run(`CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY, name TEXT, email TEXT, accessToken TEXT
+    id TEXT PRIMARY KEY, 
+    name TEXT, 
+    email TEXT, 
+    accessToken TEXT
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS likes (
-    userId TEXT, videoId TEXT, PRIMARY KEY (userId, videoId)
+    userId TEXT, 
+    videoId TEXT, 
+    PRIMARY KEY (userId, videoId)
   )`);
   db.run(`CREATE TABLE IF NOT EXISTS subscriptions (
-    userId TEXT, channelId TEXT, PRIMARY KEY (userId, channelId)
+    userId TEXT, 
+    channelId TEXT, 
+    PRIMARY KEY (userId, channelId)
   )`);
   saveDB();
   console.log('✅ База данных инициализирована!');
@@ -57,11 +64,11 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
-// ===== АВТОРИЗАЦИЯ GOOGLE =====
+// ===== АВТОРИЗАЦИЯ GOOGLE (С ПРАВИЛЬНЫМ REDIRECT URI) =====
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: process.env.CALLBACK_URL || 'http://localhost:3000/auth/google/callback'
+  callbackURL: 'https://youtube-app-5oyn.onrender.com/auth/google/callback'
 }, (accessToken, refreshToken, profile, done) => {
   const stmt = db.prepare(`INSERT OR REPLACE INTO users (id, name, email, accessToken) VALUES (?, ?, ?, ?)`);
   stmt.run([profile.id, profile.displayName, profile.emails[0].value, accessToken]);
@@ -104,7 +111,7 @@ app.get('/search', async (req, res) => {
   }
 });
 
-// ===== SHORTS (КОРОТКИЕ ВИДЕО) =====
+// ===== SHORTS =====
 app.get('/shorts', async (req, res) => {
   try {
     const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
