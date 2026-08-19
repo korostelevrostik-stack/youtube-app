@@ -12,6 +12,7 @@
     .auth-btn { padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .shorts-btn { padding: 10px 20px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .trending-btn { padding: 10px 20px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .rec-btn { padding: 10px 20px; background: #7c4dff; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .logout-btn { padding: 10px 20px; background: #d32f2f; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .user-name { color: #4caf50; margin-left: 5px; font-weight: bold; }
     
@@ -46,6 +47,7 @@
 
 <div class="header">
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
+  <button class="rec-btn" onclick="loadRecommendations()">🧠 Рекомендации</button>
   <button class="shorts-btn" onclick="window.location.href='/shorts.html'">📱 Shorts</button>
   <button class="trending-btn" onclick="loadTrending()">🔥 Тренды</button>
   <button class="logout-btn" id="logoutBtn" onclick="logout()" style="display:none;">🚪 Выйти</button>
@@ -122,6 +124,20 @@
     }
   }
 
+  // ===== РЕКОМЕНДАЦИИ =====
+  async function loadRecommendations() {
+    document.getElementById('results').innerHTML = '<div class="loading">🧠 Анализируем ваши вкусы...</div>';
+    document.getElementById('player').innerHTML = '';
+    try {
+      const res = await fetch(`${API_URL}/recommendations`);
+      const data = await res.json();
+      currentResults = data.items || [];
+      renderResults(currentResults);
+    } catch(e) {
+      document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
+    }
+  }
+
   // ===== ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ =====
   function renderResults(items) {
     const container = document.getElementById('results');
@@ -155,7 +171,6 @@
       `;
       container.appendChild(div);
       
-      // Загружаем статус лайка и подписки
       if (currentUser) {
         checkLikeStatus(videoId);
         checkSubscribeStatus(channelId);
@@ -164,12 +179,23 @@
   }
 
   // ===== ПЛЕЕР =====
-  function playVideo(videoId) {
+  async function playVideo(videoId) {
     document.getElementById('results').innerHTML = '';
     document.getElementById('player').innerHTML = `
       <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen"></iframe>
       <button class="back" onclick="backToResults()">⬅️ Назад к списку</button>
     `;
+    
+    // Сохраняем в историю
+    if (currentUser) {
+      try {
+        await fetch(`${API_URL}/history`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ videoId })
+        });
+      } catch(e) { console.log('Ошибка сохранения истории:', e); }
+    }
   }
 
   function backToResults() {
