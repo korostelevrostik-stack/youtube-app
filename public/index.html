@@ -7,23 +7,39 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { background: #0a0a0a; color: white; font-family: system-ui; padding: 12px; }
+    
+    .header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
+    .auth-btn { padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .shorts-btn { padding: 10px 20px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .trending-btn { padding: 10px 20px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .logout-btn { padding: 10px 20px; background: #d32f2f; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .user-name { color: #4caf50; margin-left: 5px; font-weight: bold; }
+    
     .top { display: flex; gap: 10px; margin-bottom: 15px; }
     .top input { flex: 1; padding: 14px; border-radius: 25px; border: none; background: #1a1a1a; color: white; font-size: 16px; outline: none; }
     .top input::placeholder { color: #666; }
     .top button { padding: 14px 20px; background: #ff0000; color: white; border: none; border-radius: 25px; font-weight: bold; font-size: 16px; cursor: pointer; }
-    .video { background: #1a1a1a; border-radius: 12px; margin-bottom: 12px; overflow: hidden; cursor: pointer; }
-    .video img { width: 100%; display: block; }
+    
+    .video { background: #1a1a1a; border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+    .video img { width: 100%; display: block; cursor: pointer; }
     .video-info { padding: 12px; }
-    .video-title { font-weight: bold; }
-    .video-channel { color: #888; font-size: 14px; }
+    .video-title { font-weight: bold; font-size: 15px; cursor: pointer; }
+    .video-title:hover { color: #ff0000; }
+    .video-channel { color: #888; font-size: 14px; margin: 4px 0 8px 0; cursor: pointer; }
+    .video-channel:hover { color: #4285f4; }
+    
+    .video-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .action-btn { padding: 6px 16px; border: none; border-radius: 20px; font-size: 13px; cursor: pointer; transition: 0.3s; }
+    .like-btn { background: #333; color: white; }
+    .like-btn.liked { background: #ff1744; color: white; }
+    .subscribe-btn { background: #333; color: white; }
+    .subscribe-btn.subscribed { background: #d32f2f; color: white; }
+    
     iframe { width: 100%; height: 300px; border: none; border-radius: 12px; }
     .back { margin-top: 10px; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; width: 100%; font-size: 16px; cursor: pointer; }
     .loading { text-align: center; padding: 40px; color: #666; }
-    .header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
-    .auth-btn { padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
-    .shorts-btn { padding: 12px 24px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
-    .trending-btn { padding: 12px 24px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
-    .user-name { color: #888; margin-left: 10px; }
+    
+    .player-container { margin-top: 10px; }
   </style>
 </head>
 <body>
@@ -32,35 +48,51 @@
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
   <button class="shorts-btn" onclick="window.location.href='/shorts.html'">📱 Shorts</button>
   <button class="trending-btn" onclick="loadTrending()">🔥 Тренды</button>
+  <button class="logout-btn" id="logoutBtn" onclick="logout()" style="display:none;">🚪 Выйти</button>
   <span id="userName" class="user-name"></span>
 </div>
 
 <div class="top">
-  <input id="q" placeholder="🔍 Поиск видео..." />
+  <input id="q" placeholder="🔍 Поиск видео..." onkeydown="if(event.key==='Enter') search()" />
   <button onclick="search()">Найти</button>
 </div>
 
 <div id="results"></div>
-<div id="player"></div>
+<div id="player" class="player-container"></div>
 
 <script>
   const API_URL = window.location.origin;
+  let currentUser = null;
+  let currentResults = [];
 
+  // ===== АВТОРИЗАЦИЯ =====
   async function checkUser() {
     try {
       const res = await fetch(`${API_URL}/user`);
       const data = await res.json();
       if (data && data.name) {
-        document.getElementById('authBtn').textContent = 'Выйти';
+        currentUser = data;
+        document.getElementById('authBtn').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'inline-block';
         document.getElementById('userName').textContent = '👤 ' + data.name;
+      } else {
+        currentUser = null;
+        document.getElementById('authBtn').style.display = 'inline-block';
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('userName').textContent = '';
       }
-    } catch(e) {}
+    } catch(e) { console.log('Ошибка проверки пользователя:', e); }
   }
 
   function login() {
     window.location.href = `${API_URL}/auth/google`;
   }
 
+  function logout() {
+    window.location.href = `${API_URL}/auth/logout`;
+  }
+
+  // ===== ПОИСК =====
   async function search() {
     const q = document.getElementById('q').value;
     if (!q) return;
@@ -69,65 +101,186 @@
     try {
       const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-      renderResults(data);
+      currentResults = data.items || [];
+      renderResults(currentResults);
     } catch(e) {
       document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
     }
   }
 
+  // ===== ТРЕНДЫ =====
   async function loadTrending() {
     document.getElementById('results').innerHTML = '<div class="loading">⏳ Загрузка трендов...</div>';
     document.getElementById('player').innerHTML = '';
     try {
       const res = await fetch(`${API_URL}/trending`);
       const data = await res.json();
-      renderResults(data);
+      currentResults = data.items || [];
+      renderResults(currentResults);
     } catch(e) {
       document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
     }
   }
 
-  function renderResults(data) {
+  // ===== ОТОБРАЖЕНИЕ РЕЗУЛЬТАТОВ =====
+  function renderResults(items) {
     const container = document.getElementById('results');
     container.innerHTML = '';
-    if (!data.items || data.items.length === 0) {
+    if (!items || items.length === 0) {
       container.innerHTML = '<div class="loading">😕 Ничего не найдено</div>';
       return;
     }
-    data.items.forEach(item => {
+    items.forEach(item => {
       const videoId = item.id?.videoId || item.id;
       if (!videoId) return;
       const thumb = item.snippet?.thumbnails?.high?.url || '';
       const title = item.snippet?.title || 'Без названия';
       const channel = item.snippet?.channelTitle || 'Неизвестный канал';
+      const channelId = item.snippet?.channelId || '';
+      
       const div = document.createElement('div');
       div.className = 'video';
       div.innerHTML = `
-        <div onclick="play('${videoId}')">
+        <div onclick="playVideo('${videoId}')">
           <img src="${thumb}" />
-          <div class="video-info">
-            <div class="video-title">${title}</div>
-            <div class="video-channel">📺 ${channel}</div>
+        </div>
+        <div class="video-info">
+          <div class="video-title" onclick="playVideo('${videoId}')">${title}</div>
+          <div class="video-channel" onclick="searchChannel('${channel}')">📺 ${channel}</div>
+          <div class="video-actions">
+            <button class="action-btn like-btn" id="like-btn-${videoId}" onclick="toggleLike('${videoId}')">🤍 Лайк</button>
+            <button class="action-btn subscribe-btn" id="sub-btn-${channelId}" onclick="toggleSubscribe('${channelId}')">➕ Подписаться</button>
           </div>
         </div>
       `;
       container.appendChild(div);
+      
+      // Загружаем статус лайка и подписки
+      if (currentUser) {
+        checkLikeStatus(videoId);
+        checkSubscribeStatus(channelId);
+      }
     });
   }
 
-  function play(id) {
+  // ===== ПЛЕЕР =====
+  function playVideo(videoId) {
     document.getElementById('results').innerHTML = '';
     document.getElementById('player').innerHTML = `
-      <iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen"></iframe>
-      <button class="back" onclick="back()">⬅️ Назад к списку</button>
+      <iframe src="https://www.youtube.com/embed/${videoId}?autoplay=1&rel=0" allow="autoplay; encrypted-media; fullscreen"></iframe>
+      <button class="back" onclick="backToResults()">⬅️ Назад к списку</button>
     `;
   }
 
-  function back() {
+  function backToResults() {
     document.getElementById('player').innerHTML = '';
+    renderResults(currentResults);
+  }
+
+  // ===== ЛАЙКИ =====
+  async function toggleLike(videoId) {
+    if (!currentUser) {
+      alert('Войдите в аккаунт, чтобы ставить лайки!');
+      return;
+    }
+    const btn = document.getElementById(`like-btn-${videoId}`);
+    const res = await fetch(`${API_URL}/likes/${videoId}`);
+    const data = await res.json();
+    
+    if (data.liked) {
+      await fetch(`${API_URL}/like`, { 
+        method: 'DELETE', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId })
+      });
+      btn.innerHTML = '🤍 Лайк';
+      btn.classList.remove('liked');
+    } else {
+      await fetch(`${API_URL}/like`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId })
+      });
+      btn.innerHTML = '❤️ Лайк';
+      btn.classList.add('liked');
+    }
+  }
+
+  async function checkLikeStatus(videoId) {
+    try {
+      const res = await fetch(`${API_URL}/likes/${videoId}`);
+      const data = await res.json();
+      const btn = document.getElementById(`like-btn-${videoId}`);
+      if (btn) {
+        if (data.liked) {
+          btn.innerHTML = '❤️ Лайк';
+          btn.classList.add('liked');
+        } else {
+          btn.innerHTML = '🤍 Лайк';
+          btn.classList.remove('liked');
+        }
+      }
+    } catch(e) { console.log('Ошибка проверки лайка:', e); }
+  }
+
+  // ===== ПОДПИСКИ =====
+  async function toggleSubscribe(channelId) {
+    if (!currentUser) {
+      alert('Войдите в аккаунт, чтобы подписываться!');
+      return;
+    }
+    if (!channelId) {
+      alert('Не удалось определить канал.');
+      return;
+    }
+    const btn = document.getElementById(`sub-btn-${channelId}`);
+    const res = await fetch(`${API_URL}/subscriptions/${channelId}`);
+    const data = await res.json();
+    
+    if (data.subscribed) {
+      await fetch(`${API_URL}/subscribe`, { 
+        method: 'DELETE', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+      });
+      btn.innerHTML = '➕ Подписаться';
+      btn.classList.remove('subscribed');
+    } else {
+      await fetch(`${API_URL}/subscribe`, { 
+        method: 'POST', 
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelId })
+      });
+      btn.innerHTML = '✅ Подписан';
+      btn.classList.add('subscribed');
+    }
+  }
+
+  async function checkSubscribeStatus(channelId) {
+    if (!channelId) return;
+    try {
+      const res = await fetch(`${API_URL}/subscriptions/${channelId}`);
+      const data = await res.json();
+      const btn = document.getElementById(`sub-btn-${channelId}`);
+      if (btn) {
+        if (data.subscribed) {
+          btn.innerHTML = '✅ Подписан';
+          btn.classList.add('subscribed');
+        } else {
+          btn.innerHTML = '➕ Подписаться';
+          btn.classList.remove('subscribed');
+        }
+      }
+    } catch(e) { console.log('Ошибка проверки подписки:', e); }
+  }
+
+  // ===== ПОИСК ПО КАНАЛУ =====
+  function searchChannel(channelName) {
+    document.getElementById('q').value = channelName;
     search();
   }
 
+  // ===== ЗАПУСК =====
   checkUser();
 </script>
 </body>
