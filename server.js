@@ -36,6 +36,12 @@ async function initDB() {
     channelId TEXT, 
     PRIMARY KEY (userId, channelId)
   )`);
+  db.run(`CREATE TABLE IF NOT EXISTS history (
+    userId TEXT,
+    videoId TEXT,
+    watchedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (userId, videoId)
+  )`);
   saveDB();
   console.log('✅ База данных инициализирована!');
 }
@@ -90,7 +96,6 @@ app.get('/auth/google/callback',
   (req, res) => res.redirect('/')
 );
 
-// ===== ВЫХОД ИЗ АККАУНТА =====
 app.get('/auth/logout', (req, res) => {
   req.logout((err) => {
     if (err) {
@@ -164,6 +169,77 @@ app.get('/trending', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ===== РЕКОМЕНДАЦИИ =====
+app.get('/recommendations', async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      const trending = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+        params: { part: 'snippet', chart: 'mostPopular', regionCode: 'RU', maxResults: 10, key: YOUTUBE_API_KEY }
+      });
+      return res.json(trending.data);
+    }
+
+    const historyResult = db.exec(`SELECT videoId FROM history WHERE userId = ? ORDER BY watchedAt DESC LIMIT 20`, [userId]);
+    if (!historyResult.length || !historyResult[0].values.length) {
+      const trending = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+        params: { part: 'snippet', chart: 'mostPopular', regionCode: 'RU', maxResults: 10, key: YOUTUBE_API_KEY }
+      });
+      return res.json(trending.data);
+    }
+
+    const videoIds = historyResult[0].values.map(row => row[0]).slice(0, 5).join(',');
+    const videoDetails = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+      params: { part: 'snippet', id: videoIds, key: YOUTUBE_API_KEY }
+    });
+
+    const stopWords = ['official', 'mv', 'hd', '4k', 'clip', 'video', 'music', 'song', 'remix', 'cover', 'live', 'ft', 'feat', 'prod', 'by', 'with', 'and', 'the', 'of', 'for', 'on', 'at', 'to', 'from', 'in'];
+    let keywords = [];
+    videoDetails.data.items.forEach(item => {
+      const title = item.snippet.title.toLowerCase();
+      const words = title.split(/[\s\-_|:;,.!?()\[\]{}"']+/);
+      words.forEach(word => {
+        if (word.length > 3 && !stopWords.includes(word) && !/^\d+$/.test(word)) {
+          keywords.push(word);
+        }
+      });
+    });
+
+    const freq = {};
+    keywords.forEach(word => freq[word] = (freq[word] || 0) + 1);
+    const sorted = Object.entries(freq).sort((a, b) => b[1] - a[1]);
+    const topKeywords = sorted.slice(0, 3).map(([word]) => word);
+    if (!topKeywords.length) {
+      const trending = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+        params: { part: 'snippet', chart: 'mostPopular', regionCode: 'RU', maxResults: 10, key: YOUTUBE_API_KEY }
+      });
+      return res.json(trending.data);
+    }
+
+    const searchResult = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+      params: { part: 'snippet', q: topKeywords.join(' '), type: 'video', maxResults: 15, key: YOUTUBE_API_KEY }
+    });
+
+    const watchedIds = historyResult[0].values.map(row => row[0]);
+    const recommended = searchResult.data.items.filter(item => !watchedIds.includes(item.id.videoId));
+    res.json({ items: recommended.slice(0, 10) });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ===== СОХРАНЕНИЕ ИСТОРИИ =====
+app.post('/history', (req, res) => {
+  const { videoId } = req.body;
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Войдите в аккаунт' });
+  const stmt = db.prepare(`INSERT OR REPLACE INTO history (userId, videoId, watchedAt) VALUES (?, ?, datetime('now'))`);
+  stmt.run([userId, videoId]);
+  stmt.free();
+  saveDB();
+  res.json({ success: true });
 });
 
 // ===== ЛАЙКИ =====
