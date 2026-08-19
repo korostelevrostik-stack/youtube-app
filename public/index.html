@@ -9,19 +9,23 @@
     body { background: #0a0a0a; color: white; font-family: system-ui; padding: 12px; }
     .top { display: flex; gap: 10px; margin-bottom: 15px; }
     .top input { flex: 1; padding: 14px; border-radius: 25px; border: none; background: #1a1a1a; color: white; font-size: 16px; }
-    .top button { padding: 14px 20px; background: #ff0000; color: white; border: none; border-radius: 25px; font-weight: bold; font-size: 16px; }
+    .top button { padding: 14px 20px; background: #ff0000; color: white; border: none; border-radius: 25px; font-weight: bold; font-size: 16px; cursor: pointer; }
     .video { background: #1a1a1a; border-radius: 12px; margin-bottom: 12px; overflow: hidden; cursor: pointer; }
     .video img { width: 100%; display: block; }
     .video-info { padding: 12px; }
     .video-title { font-weight: bold; }
     .video-channel { color: #888; font-size: 14px; }
     iframe { width: 100%; height: 300px; border: none; border-radius: 12px; }
-    .back { margin-top: 10px; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; width: 100%; font-size: 16px; }
+    .back { margin-top: 10px; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; width: 100%; font-size: 16px; cursor: pointer; }
     .loading { text-align: center; padding: 40px; color: #666; }
-    .auth-btn { padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; margin-bottom: 15px; }
-    .shorts-btn { padding: 12px 24px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; margin-bottom: 15px; margin-left: 10px; }
-    .user-name { color: #888; margin-left: 10px; }
     .header { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
+    .auth-btn { padding: 12px 24px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
+    .shorts-btn { padding: 12px 24px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
+    .trending-btn { padding: 12px 24px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 16px; cursor: pointer; }
+    .user-name { color: #888; margin-left: 10px; }
+    .cat-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+    .cat-btn { padding: 8px 16px; background: #2a2a2a; color: white; border: none; border-radius: 20px; font-size: 14px; cursor: pointer; }
+    .cat-btn:hover { background: #3a3a3a; }
   </style>
 </head>
 <body>
@@ -29,7 +33,16 @@
 <div class="header">
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
   <button class="shorts-btn" onclick="window.location.href='/shorts.html'">📱 Shorts</button>
+  <button class="trending-btn" onclick="loadTrending()">🔥 Тренды</button>
   <span id="userName" class="user-name"></span>
+</div>
+
+<div class="cat-btns">
+  <button class="cat-btn" onclick="searchCat('music')">🎵 Музыка</button>
+  <button class="cat-btn" onclick="searchCat('gaming')">🎮 Игры</button>
+  <button class="cat-btn" onclick="searchCat('sport')">⚽ Спорт</button>
+  <button class="cat-btn" onclick="searchCat('comedy')">😂 Юмор</button>
+  <button class="cat-btn" onclick="searchCat('news')">📰 Новости</button>
 </div>
 
 <div class="top">
@@ -44,15 +57,14 @@
   const API_URL = window.location.origin;
 
   async function checkUser() {
-    const res = await fetch(`${API_URL}/user`);
-    const data = await res.json();
-    if (data && data.name) {
-      document.getElementById('authBtn').textContent = 'Выйти';
-      document.getElementById('userName').textContent = data.name;
-    } else {
-      document.getElementById('authBtn').textContent = 'Войти через Google';
-      document.getElementById('userName').textContent = '';
-    }
+    try {
+      const res = await fetch(`${API_URL}/user`);
+      const data = await res.json();
+      if (data && data.name) {
+        document.getElementById('authBtn').textContent = 'Выйти';
+        document.getElementById('userName').textContent = '👤 ' + data.name;
+      }
+    } catch(e) {}
   }
 
   function login() {
@@ -62,35 +74,60 @@
   async function search() {
     const q = document.getElementById('q').value;
     if (!q) return;
-
     document.getElementById('results').innerHTML = '<div class="loading">⏳ Загрузка...</div>';
     document.getElementById('player').innerHTML = '';
-
     try {
       const res = await fetch(`${API_URL}/search?q=${encodeURIComponent(q)}`);
       const data = await res.json();
-
-      const container = document.getElementById('results');
-      container.innerHTML = '';
-
-      data.items.forEach(item => {
-        if (!item.id || !item.id.videoId) return;
-        const div = document.createElement('div');
-        div.className = 'video';
-        div.innerHTML = `
-          <div onclick="play('${item.id.videoId}')">
-            <img src="${item.snippet.thumbnails.high.url}" />
-            <div class="video-info">
-              <div class="video-title">${item.snippet.title}</div>
-              <div class="video-channel">📺 ${item.snippet.channelTitle}</div>
-            </div>
-          </div>
-        `;
-        container.appendChild(div);
-      });
-    } catch (e) {
+      renderResults(data);
+    } catch(e) {
       document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
     }
+  }
+
+  function searchCat(cat) {
+    document.getElementById('q').value = cat;
+    search();
+  }
+
+  async function loadTrending() {
+    document.getElementById('results').innerHTML = '<div class="loading">⏳ Загрузка трендов...</div>';
+    document.getElementById('player').innerHTML = '';
+    try {
+      const res = await fetch(`${API_URL}/trending`);
+      const data = await res.json();
+      renderResults(data);
+    } catch(e) {
+      document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
+    }
+  }
+
+  function renderResults(data) {
+    const container = document.getElementById('results');
+    container.innerHTML = '';
+    if (!data.items || data.items.length === 0) {
+      container.innerHTML = '<div class="loading">😕 Ничего не найдено</div>';
+      return;
+    }
+    data.items.forEach(item => {
+      const videoId = item.id?.videoId || item.id;
+      if (!videoId) return;
+      const thumb = item.snippet?.thumbnails?.high?.url || '';
+      const title = item.snippet?.title || 'Без названия';
+      const channel = item.snippet?.channelTitle || 'Неизвестный канал';
+      const div = document.createElement('div');
+      div.className = 'video';
+      div.innerHTML = `
+        <div onclick="play('${videoId}')">
+          <img src="${thumb}" />
+          <div class="video-info">
+            <div class="video-title">${title}</div>
+            <div class="video-channel">📺 ${channel}</div>
+          </div>
+        </div>
+      `;
+      container.appendChild(div);
+    });
   }
 
   function play(id) {
