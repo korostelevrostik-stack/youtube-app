@@ -123,6 +123,24 @@ app.get('/shorts', async (req, res) => {
   }
 });
 
+// ===== ТРЕНДЫ =====
+app.get('/trending', async (req, res) => {
+  try {
+    const response = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
+      params: {
+        part: 'snippet,statistics',
+        chart: 'mostPopular',
+        regionCode: 'RU',
+        maxResults: 20,
+        key: YOUTUBE_API_KEY
+      }
+    });
+    res.json(response.data);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // ===== ЛАЙКИ =====
 app.post('/like', (req, res) => {
   const { videoId } = req.body;
