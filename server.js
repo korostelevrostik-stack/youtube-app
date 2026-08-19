@@ -64,7 +64,7 @@ const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const YOUTUBE_API_KEY = process.env.YOUTUBE_API_KEY;
 
-// ===== АВТОРИЗАЦИЯ GOOGLE (С ПРАВИЛЬНЫМ REDIRECT URI) =====
+// ===== АВТОРИЗАЦИЯ GOOGLE =====
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
@@ -80,13 +80,31 @@ passport.use(new GoogleStrategy({
 passport.serializeUser((user, done) => done(null, user));
 passport.deserializeUser((obj, done) => done(null, obj));
 
+// ===== МАРШРУТЫ АВТОРИЗАЦИИ =====
 app.get('/auth/google', passport.authenticate('google', {
   scope: ['profile', 'email', 'https://www.googleapis.com/auth/youtube.force-ssl']
 }));
+
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/' }),
   (req, res) => res.redirect('/')
 );
+
+// ===== ВЫХОД ИЗ АККАУНТА =====
+app.get('/auth/logout', (req, res) => {
+  req.logout((err) => {
+    if (err) {
+      console.error('Ошибка выхода:', err);
+      return res.status(500).json({ error: 'Ошибка выхода' });
+    }
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Ошибка удаления сессии:', err);
+      }
+      res.redirect('/');
+    });
+  });
+});
 
 app.get('/user', (req, res) => {
   res.json(req.user ? { id: req.user.id, name: req.user.displayName } : null);
