@@ -134,25 +134,6 @@ app.get('/search', async (req, res) => {
   }
 });
 
-// ===== SHORTS =====
-app.get('/shorts', async (req, res) => {
-  try {
-    const response = await axios.get('https://www.googleapis.com/youtube/v3/search', {
-      params: {
-        part: 'snippet',
-        q: 'shorts',
-        type: 'video',
-        maxResults: 30,
-        videoDuration: 'short',
-        key: YOUTUBE_API_KEY
-      }
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // ===== ТРЕНДЫ =====
 app.get('/trending', async (req, res) => {
   try {
@@ -174,7 +155,7 @@ app.get('/trending', async (req, res) => {
 // ===== РЕКОМЕНДАЦИИ =====
 app.get('/recommendations', async (req, res) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.query.userId || req.user?.id;
     if (!userId) {
       const trending = await axios.get('https://www.googleapis.com/youtube/v3/videos', {
         params: { part: 'snippet', chart: 'mostPopular', regionCode: 'RU', maxResults: 10, key: YOUTUBE_API_KEY }
@@ -232,11 +213,11 @@ app.get('/recommendations', async (req, res) => {
 
 // ===== СОХРАНЕНИЕ ИСТОРИИ =====
 app.post('/history', (req, res) => {
-  const { videoId } = req.body;
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Войдите в аккаунт' });
+  const { videoId, userId } = req.body;
+  const uid = userId || req.user?.id;
+  if (!uid) return res.status(401).json({ error: 'ID пользователя не передан' });
   const stmt = db.prepare(`INSERT OR REPLACE INTO history (userId, videoId, watchedAt) VALUES (?, ?, datetime('now'))`);
-  stmt.run([userId, videoId]);
+  stmt.run([uid, videoId]);
   stmt.free();
   saveDB();
   res.json({ success: true });
@@ -270,11 +251,10 @@ app.get('/likes/:videoId', (req, res) => {
   res.json({ liked: result.length > 0 });
 });
 
-// ===== ПОДПИСКИ =====
+// ===== ПОДПИСКИ (ЧЕРЕЗ TELEGRAM ID) =====
 app.post('/subscribe', (req, res) => {
-  const { channelId } = req.body;
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Войдите в аккаунт' });
+  const { userId, channelId } = req.body;
+  if (!userId) return res.status(401).json({ error: 'ID пользователя не передан' });
   const stmt = db.prepare(`INSERT OR REPLACE INTO subscriptions (userId, channelId) VALUES (?, ?)`);
   stmt.run([userId, channelId]);
   stmt.free();
@@ -283,19 +263,41 @@ app.post('/subscribe', (req, res) => {
 });
 
 app.delete('/subscribe', (req, res) => {
-  const { channelId } = req.body;
-  const userId = req.user?.id;
-  if (!userId) return res.status(401).json({ error: 'Войдите в аккаунт' });
+  const { userId, channelId } = req.body;
+  if (!userId) return res.status(401).json({ error: 'ID пользователя не передан' });
   db.run(`DELETE FROM subscriptions WHERE userId = ? AND channelId = ?`, [userId, channelId]);
   saveDB();
   res.json({ success: true });
 });
 
 app.get('/subscriptions/:channelId', (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.query.userId;
   if (!userId) return res.json({ subscribed: false });
   const result = db.exec(`SELECT * FROM subscriptions WHERE userId = ? AND channelId = ?`, [userId, req.params.channelId]);
   res.json({ subscribed: result.length > 0 });
+});
+
+app.get('/subscriptions', (req, res) => {
+  const userId = req.query.userId;
+  if (!userId) return res.json({ items: [] });
+  const result = db.exec(`SELECT channelId FROM subscriptions WHERE userId = ?`, [userId]);
+  if (!result.length || !result[0].values.length) {
+    return res.json({ items: [] });
+  }
+  const channelIds = result[0].values.map(row => row[0]).filter(id => id).join(',');
+  if (!channelIds) return res.json({ items: [] });
+  
+  // Ищем видео по каналам
+  const searchResult = await axios.get('https://www.googleapis.com/youtube/v3/search', {
+    params: {
+      part: 'snippet',
+      channelId: channelIds.split(',')[0],
+      type: 'video',
+      maxResults: 20,
+      key: YOUTUBE_API_KEY
+    }
+  });
+  res.json({ items: searchResult.data.items || [] });
 });
 
 // ===== ЗАПУСК =====
