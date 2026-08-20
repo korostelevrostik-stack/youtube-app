@@ -285,7 +285,7 @@ app.get('/subscriptions', (req, res) => {
     return res.json({ items: [] });
   }
   const channelIds = result[0].values.map(row => row[0]).filter(id => id).join(',');
-  if (!channelIds) return res.json({ items: [] });
+  if (!channelIds) return res.json({ items: [] })
   
   // Ищем видео по каналам
   const searchResult = await axios.get('https://www.googleapis.com/youtube/v3/search', {
