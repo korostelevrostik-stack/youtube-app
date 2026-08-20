@@ -10,7 +10,6 @@
     
     .header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 15px; }
     .auth-btn { padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
-    .shorts-btn { padding: 10px 20px; background: #00bcd4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .trending-btn { padding: 10px 20px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .rec-btn { padding: 10px 20px; background: #7c4dff; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .logout-btn { padding: 10px 20px; background: #d32f2f; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
@@ -48,7 +47,6 @@
 <div class="header">
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
   <button class="rec-btn" onclick="loadRecommendations()">🧠 Рекомендации</button>
-  <button class="shorts-btn" onclick="window.location.href='/shorts.html'">📱 Shorts</button>
   <button class="trending-btn" onclick="loadTrending()">🔥 Тренды</button>
   <button class="logout-btn" id="logoutBtn" onclick="logout()" style="display:none;">🚪 Выйти</button>
   <span id="userName" class="user-name"></span>
@@ -186,7 +184,6 @@
       <button class="back" onclick="backToResults()">⬅️ Назад к списку</button>
     `;
     
-    // Сохраняем в историю
     if (currentUser) {
       try {
         await fetch(`${API_URL}/history`, {
