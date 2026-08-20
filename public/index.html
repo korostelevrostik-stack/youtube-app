@@ -12,6 +12,7 @@
     .auth-btn { padding: 10px 20px; background: #4285f4; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .trending-btn { padding: 10px 20px; background: #ff6f00; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .rec-btn { padding: 10px 20px; background: #7c4dff; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
+    .subs-btn { padding: 10px 20px; background: #e91e63; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .logout-btn { padding: 10px 20px; background: #d32f2f; color: white; border: none; border-radius: 25px; font-size: 14px; cursor: pointer; }
     .user-name { color: #4caf50; margin-left: 5px; font-weight: bold; }
     
@@ -48,6 +49,7 @@
   <button class="auth-btn" id="authBtn" onclick="login()">Войти через Google</button>
   <button class="rec-btn" onclick="loadRecommendations()">🧠 Рекомендации</button>
   <button class="trending-btn" onclick="loadTrending()">🔥 Тренды</button>
+  <button class="subs-btn" onclick="loadMySubscriptions()">📺 Мои подписки</button>
   <button class="logout-btn" id="logoutBtn" onclick="logout()" style="display:none;">🚪 Выйти</button>
   <span id="userName" class="user-name"></span>
 </div>
@@ -64,8 +66,23 @@
   const API_URL = window.location.origin;
   let currentUser = null;
   let currentResults = [];
+  let tgUser = null;
 
-  // ===== АВТОРИЗАЦИЯ =====
+  // ===== ПОЛУЧАЕМ ID ПОЛЬЗОВАТЕЛЯ ИЗ TELEGRAM =====
+  function getTelegramUser() {
+    if (window.Telegram && window.Telegram.WebApp) {
+      const user = window.Telegram.WebApp.initDataUnsafe?.user;
+      if (user) {
+        tgUser = user;
+        console.log('👤 Пользователь Telegram:', tgUser);
+        document.getElementById('userName').textContent = '👤 ' + (tgUser.first_name || 'Пользователь');
+        return user;
+      }
+    }
+    return null;
+  }
+
+  // ===== АВТОРИЗАЦИЯ GOOGLE =====
   async function checkUser() {
     try {
       const res = await fetch(`${API_URL}/user`);
@@ -79,7 +96,6 @@
         currentUser = null;
         document.getElementById('authBtn').style.display = 'inline-block';
         document.getElementById('logoutBtn').style.display = 'none';
-        document.getElementById('userName').textContent = '';
       }
     } catch(e) { console.log('Ошибка проверки пользователя:', e); }
   }
@@ -127,9 +143,33 @@
     document.getElementById('results').innerHTML = '<div class="loading">🧠 Анализируем ваши вкусы...</div>';
     document.getElementById('player').innerHTML = '';
     try {
-      const res = await fetch(`${API_URL}/recommendations`);
+      const userId = tgUser?.id || currentUser?.id;
+      const url = userId ? `${API_URL}/recommendations?userId=${userId}` : `${API_URL}/recommendations`;
+      const res = await fetch(url);
       const data = await res.json();
       currentResults = data.items || [];
+      renderResults(currentResults);
+    } catch(e) {
+      document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
+    }
+  }
+
+  // ===== МОИ ПОДПИСКИ =====
+  async function loadMySubscriptions() {
+    if (!tgUser) {
+      alert('❌ Запусти приложение через Telegram!');
+      return;
+    }
+    document.getElementById('results').innerHTML = '<div class="loading">📺 Загружаем ваши подписки...</div>';
+    document.getElementById('player').innerHTML = '';
+    try {
+      const res = await fetch(`${API_URL}/subscriptions?userId=${tgUser.id}`);
+      const data = await res.json();
+      if (!data.items || data.items.length === 0) {
+        document.getElementById('results').innerHTML = '<div class="loading">😕 Вы ещё не подписаны на каналы</div>';
+        return;
+      }
+      currentResults = data.items;
       renderResults(currentResults);
     } catch(e) {
       document.getElementById('results').innerHTML = `<div class="loading">❌ Ошибка: ${e.message}</div>`;
@@ -171,6 +211,8 @@
       
       if (currentUser) {
         checkLikeStatus(videoId);
+      }
+      if (tgUser && channelId) {
         checkSubscribeStatus(channelId);
       }
     });
@@ -184,12 +226,13 @@
       <button class="back" onclick="backToResults()">⬅️ Назад к списку</button>
     `;
     
-    if (currentUser) {
+    const userId = tgUser?.id || currentUser?.id;
+    if (userId) {
       try {
         await fetch(`${API_URL}/history`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ videoId })
+          body: JSON.stringify({ videoId, userId })
         });
       } catch(e) { console.log('Ошибка сохранения истории:', e); }
     }
@@ -203,7 +246,7 @@
   // ===== ЛАЙКИ =====
   async function toggleLike(videoId) {
     if (!currentUser) {
-      alert('Войдите в аккаунт, чтобы ставить лайки!');
+      alert('Войдите в аккаунт через Google, чтобы ставить лайки!');
       return;
     }
     const btn = document.getElementById(`like-btn-${videoId}`);
@@ -246,10 +289,10 @@
     } catch(e) { console.log('Ошибка проверки лайка:', e); }
   }
 
-  // ===== ПОДПИСКИ =====
+  // ===== ПОДПИСКИ (ЧЕРЕЗ TELEGRAM ID) =====
   async function toggleSubscribe(channelId) {
-    if (!currentUser) {
-      alert('Войдите в аккаунт, чтобы подписываться!');
+    if (!tgUser) {
+      alert('❌ Запусти приложение через Telegram!');
       return;
     }
     if (!channelId) {
@@ -257,14 +300,14 @@
       return;
     }
     const btn = document.getElementById(`sub-btn-${channelId}`);
-    const res = await fetch(`${API_URL}/subscriptions/${channelId}`);
+    const res = await fetch(`${API_URL}/subscriptions/${channelId}?userId=${tgUser.id}`);
     const data = await res.json();
     
     if (data.subscribed) {
       await fetch(`${API_URL}/subscribe`, { 
         method: 'DELETE', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId })
+        body: JSON.stringify({ userId: tgUser.id, channelId })
       });
       btn.innerHTML = '➕ Подписаться';
       btn.classList.remove('subscribed');
@@ -272,7 +315,7 @@
       await fetch(`${API_URL}/subscribe`, { 
         method: 'POST', 
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId })
+        body: JSON.stringify({ userId: tgUser.id, channelId })
       });
       btn.innerHTML = '✅ Подписан';
       btn.classList.add('subscribed');
@@ -280,9 +323,9 @@
   }
 
   async function checkSubscribeStatus(channelId) {
-    if (!channelId) return;
+    if (!channelId || !tgUser) return;
     try {
-      const res = await fetch(`${API_URL}/subscriptions/${channelId}`);
+      const res = await fetch(`${API_URL}/subscriptions/${channelId}?userId=${tgUser.id}`);
       const data = await res.json();
       const btn = document.getElementById(`sub-btn-${channelId}`);
       if (btn) {
@@ -304,6 +347,7 @@
   }
 
   // ===== ЗАПУСК =====
+  getTelegramUser();
   checkUser();
 </script>
 </body>
