@@ -277,7 +277,7 @@ app.get('/subscriptions/:channelId', (req, res) => {
   res.json({ subscribed: result.length > 0 });
 });
 
-app.get('/subscriptions', (req, res) => {
+app.get('/subscriptions', async (req, res) => {
   const userId = req.query.userId;
   if (!userId) return res.json({ items: [] });
   const result = db.exec(`SELECT channelId FROM subscriptions WHERE userId = ?`, [userId]);
